@@ -30,7 +30,7 @@ function App() {
               <Sidebar />
               <main className="flex-1 overflow-auto">
                 <Routes>
-                  {/* <Route path="/dashboard" element={<Dashboard />} /> */}
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/cases" element={<CaseResearch />} />
                   <Route path="/contracts" element={<ContractAnalysis />} />
                   <Route path="/news" element={<LegalNews />} />
