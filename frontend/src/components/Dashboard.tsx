@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { 
   Scale, 
   FileText, 
@@ -17,6 +16,7 @@ import {
   Sparkles,
   Crown,
   Target,
+  ScrollText,
   BarChart3
 } from 'lucide-react';
 
@@ -69,8 +69,29 @@ const features = [
     path: '/find-lawyer',
     gradient: 'bg-gradient-to-br from-amber-50 to-orange-50',
     stats: '500+ experts'
+  },
+  {
+    icon: Target,
+    title: 'Case Predictor',
+    description: 'AI-powered win probability and outcome prediction',
+    color: 'from-indigo-500 to-purple-600',
+    iconColor: 'text-indigo-600',
+    path: '/predict',
+    gradient: 'bg-gradient-to-br from-indigo-50 to-purple-50',
+    stats: 'Groq llama-3.3 powered'
+  },
+  {
+    icon: ScrollText,
+    title: 'Document Generator',
+    description: 'Instantly draft legal contracts and notices with AI',
+    color: 'from-teal-500 to-emerald-600',
+    iconColor: 'text-teal-600',
+    path: '/generate-document',
+    gradient: 'bg-gradient-to-br from-teal-50 to-emerald-50',
+    stats: 'Customizable formats'
   }
 ];
+
 
 const stats = [
   { 
@@ -122,20 +143,15 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(false);
   const [activeFeature, setActiveFeature] = useState(null);
-  const { user } = useAuth();
   const [userName, setUserName] = useState(userData.name);
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
 
   // In real app, this would come from auth context
   useEffect(() => {
     setIsVisible(true);
+    // Simulate dynamic username - in real app, this would be from context/API
+    const storedName = localStorage.getItem('userName') || 'Anil Kumar';
+    setUserName(storedName);
   }, []);
-
-  useEffect(() => {
-    const storedName = localStorage.getItem('userName') || 'Balaji';
-    setUserName(user?.name || storedName);
-    setAvatarUrl(user?.avatarUrl);
-  }, [user]);
 
   const handleFeatureClick = (path) => {
     navigate(path);
@@ -203,18 +219,8 @@ export default function Dashboard() {
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               </button>
-              <div
-                className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-lg flex items-center justify-center"
-                onClick={() => {
-                  const evt = new Event('openProfile');
-                  window.dispatchEvent(evt);
-                }}
-              >
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{userName.charAt(0)}</span>
-                )}
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer">
+                {userName.charAt(0)}
               </div>
             </div>
           </div>

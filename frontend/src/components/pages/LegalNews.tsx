@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Globe, Tag, TrendingUp, Clock, BookOpen, AlertCircle, Search, MapPin, Shield, Scale, Gavel, Building2 } from 'lucide-react';
 
 interface NewsArticle {
@@ -23,10 +23,13 @@ export default function LegalNews() {
   const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const API_KEY = '876d7f67dae77fc1ef18a07ab1712dd6';
   const ARTICLES_PER_PAGE = 10;
+
+  // ✅ FIX: persistent ref instead of variable
+  const lastFetchTime = useRef(0);
+  const FETCH_INTERVAL = 60 * 1000;
 
   const indianTopics = [
     { name: "Indian Law", value: "indian law", icon: Scale },
@@ -43,25 +46,26 @@ export default function LegalNews() {
     { name: "Trade Law", value: "international trade law", icon: Scale }
   ];
 
-  useEffect(() => {
-    fetchIndianNews();
-    fetchGlobalNews();
-    
-    const interval = setInterval(() => {
-      setRefreshKey(prev => prev + 1);
-    }, 300000);
-
-    return () => clearInterval(interval);
-  }, [selectedTopic, refreshKey]);
-
   const fetchIndianNews = async () => {
+    const now = Date.now();
+    if (now - lastFetchTime.current < FETCH_INTERVAL) return;
+
+    lastFetchTime.current = now;
+
     setIsLoading(true);
     setError(null);
+
     try {
       const query = `${selectedTopic} india`;
+
       const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=in&max=${ARTICLES_PER_PAGE}&apikey=${API_KEY}`;
-      
+
       const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error("API limit reached or invalid key");
+      }
+
       const data = await response.json();
 
       if (data.errors) {
@@ -79,15 +83,13 @@ export default function LegalNews() {
   const fetchGlobalNews = async () => {
     setIsLoadingGlobal(true);
     try {
-      const query = "international law global";
-      const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=${ARTICLES_PER_PAGE}&apikey=${API_KEY}`;
-      
-      const response = await fetch(url);
-      const data = await response.json();
+      const url = `https://gnews.io/api/v4/search?q=international law&lang=en&max=${ARTICLES_PER_PAGE}&apikey=${API_KEY}`;
 
-      if (data.errors) {
-        throw new Error(data.errors[0]);
-      }
+      const response = await fetch(url);
+
+      if (!response.ok) return;
+
+      const data = await response.json();
 
       setGlobalNews(data.articles || []);
     } catch (err) {
@@ -96,6 +98,24 @@ export default function LegalNews() {
       setIsLoadingGlobal(false);
     }
   };
+
+  // ✅ FIX: only one useEffect
+  useEffect(() => {
+    fetchIndianNews();
+
+    if (selectedCategory === 'global') {
+      fetchGlobalNews();
+    }
+
+    const interval = setInterval(() => {
+      fetchIndianNews();
+      if (selectedCategory === 'global') {
+        fetchGlobalNews();
+      }
+    }, 300000);
+
+    return () => clearInterval(interval);
+  }, [selectedTopic, selectedCategory]);
 
   const filterArticles = () => {
     const articles = selectedCategory === 'india' ? newsArticles : globalNews;
@@ -111,16 +131,10 @@ export default function LegalNews() {
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffMinutes = Math.floor(diffTime / (1000 * 60));
-    
-    if (diffMinutes < 60) {
-      return `${diffMinutes}m ago`;
-    } else if (diffMinutes < 1440) {
-      const hours = Math.floor(diffMinutes / 60);
-      return `${hours}h ago`;
-    } else {
-      const days = Math.floor(diffMinutes / 1440);
-      return `${days}d ago`;
-    }
+
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return `${Math.floor(diffMinutes / 1440)}d ago`;
   };
 
   const getTopics = () => selectedCategory === 'india' ? indianTopics : globalTopics;
@@ -133,6 +147,212 @@ export default function LegalNews() {
       return `https://www.google.com/s2/favicons?sz=64&domain=gnews.io`;
     }
   };
+
+// import React, { useState, useEffect } from 'react';
+// import { Globe, Tag, TrendingUp, Clock, BookOpen, AlertCircle, Search, MapPin, Shield, Scale, Gavel, Building2 } from 'lucide-react';
+
+// interface NewsArticle {
+//   title: string;
+//   description: string;
+//   content: string;
+//   url: string;
+//   image: string;
+//   publishedAt: string;
+//   source: {
+//     name: string;
+//     url: string;
+//   };
+// }
+
+// export default function LegalNews() {
+//   const [selectedCategory, setSelectedCategory] = useState<'india' | 'global'>('india');
+//   const [selectedTopic, setSelectedTopic] = useState('indian law');
+//   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+//   const [globalNews, setGlobalNews] = useState<NewsArticle[]>([]);
+//   const [isLoading, setIsLoading] = useState(true);
+//   const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
+//   const [error, setError] = useState<string | null>(null);
+//   const [searchQuery, setSearchQuery] = useState('');
+//   const [refreshKey, setRefreshKey] = useState(0);
+
+//   const API_KEY = '876d7f67dae77fc1ef18a07ab1712dd6';
+//   const ARTICLES_PER_PAGE = 10;
+//   let lastFetchTime = 0;
+// const FETCH_INTERVAL = 60 * 1000; // 1 min
+
+//   const indianTopics = [
+//     { name: "Indian Law", value: "indian law", icon: Scale },
+//     { name: "Supreme Court", value: "supreme court india", icon: Gavel },
+//     { name: "High Courts", value: "high court india", icon: Building2 },
+//     { name: "Constitutional Law", value: "indian constitutional law", icon: Shield },
+//     { name: "Criminal Law", value: "indian criminal law", icon: Scale }
+//   ];
+
+//   const globalTopics = [
+//     { name: "International Law", value: "international law", icon: Globe },
+//     { name: "Corporate Law", value: "global corporate law", icon: Building2 },
+//     { name: "Human Rights", value: "international human rights", icon: Shield },
+//     { name: "Trade Law", value: "international trade law", icon: Scale }
+//   ];
+
+//   useEffect(() => {
+//     fetchIndianNews();
+//     fetchGlobalNews();
+    
+//     const interval = setInterval(() => {
+//       setRefreshKey(prev => prev + 1);
+//     }, 300000);
+
+//     return () => clearInterval(interval);
+//   }, [selectedTopic, refreshKey]);
+
+//   // const fetchIndianNews = async () => {
+//   //   setIsLoading(true);
+//   //   setError(null);
+//   //   try {
+//   //     const query = `${selectedTopic} india`;
+//   //     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=in&max=${ARTICLES_PER_PAGE}&apikey=${API_KEY}`;
+      
+//   //     const response = await fetch(url);
+//   //     const data = await response.json();
+
+//   //     if (data.errors) {
+//   //       throw new Error(data.errors[0]);
+//   //     }
+
+//   //     setNewsArticles(data.articles || []);
+//   //   } catch (err) {
+//   //     setError(err instanceof Error ? err.message : 'Failed to fetch Indian news');
+//   //   } finally {
+//   //     setIsLoading(false);
+//   //   }
+//   // };
+
+//   const fetchIndianNews = async () => {
+//   const now = Date.now();
+//   if (now - lastFetchTime < FETCH_INTERVAL) return;
+
+//   lastFetchTime = now;
+
+//   setIsLoading(true);
+//   setError(null);
+
+//   try {
+//     const query = `${selectedTopic} india`;
+
+//     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=in&max=${ARTICLES_PER_PAGE}&apikey=${API_KEY}`;
+
+//     const response = await fetch(url);
+
+//     if (!response.ok) {
+//       throw new Error("API limit reached or invalid key");
+//     }
+
+//     const data = await response.json();
+
+//     if (data.errors) {
+//       throw new Error(data.errors[0]);
+//     }
+
+//     setNewsArticles(data.articles || []);
+//   } catch (err) {
+//     setError(err instanceof Error ? err.message : 'Failed to fetch Indian news');
+//   } finally {
+//     setIsLoading(false);
+//   }
+// };
+//   // const fetchGlobalNews = async () => {
+//   //   setIsLoadingGlobal(true);
+//   //   try {
+//   //     const query = "international law global";
+//   //     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=${ARTICLES_PER_PAGE}&apikey=${API_KEY}`;
+      
+//   //     const response = await fetch(url);
+//   //     const data = await response.json();
+
+//   //     if (data.errors) {
+//   //       throw new Error(data.errors[0]);
+//   //     }
+
+//   //     setGlobalNews(data.articles || []);
+//   //   } catch (err) {
+//   //     console.error('Failed to fetch global news:', err);
+//   //   } finally {
+//   //     setIsLoadingGlobal(false);
+//   //   }
+//   // };
+
+//   const fetchGlobalNews = async () => {
+//   try {
+//     const url = `https://gnews.io/api/v4/search?q=international law&lang=en&max=${ARTICLES_PER_PAGE}&apikey=${API_KEY}`;
+
+//     const response = await fetch(url);
+
+//     if (!response.ok) return;
+
+//     const data = await response.json();
+
+//     setGlobalNews(data.articles || []);
+//   } catch (err) {
+//     console.error('Failed to fetch global news:', err);
+//   } finally {
+//     setIsLoadingGlobal(false);
+//   }
+// };
+
+// useEffect(() => {
+//   fetchIndianNews();
+
+//   if (selectedCategory === 'global') {
+//     fetchGlobalNews();
+//   }
+
+//   const interval = setInterval(() => {
+//     fetchIndianNews();
+//     if (selectedCategory === 'global') {
+//       fetchGlobalNews();
+//     }
+//   }, 300000);
+
+//   return () => clearInterval(interval);
+// }, [selectedTopic, selectedCategory]);
+
+//   const filterArticles = () => {
+//     const articles = selectedCategory === 'india' ? newsArticles : globalNews;
+//     if (!searchQuery) return articles;
+//     return articles.filter(article =>
+//       article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//       article.description.toLowerCase().includes(searchQuery.toLowerCase())
+//     );
+//   };
+
+//   const formatDate = (dateString: string) => {
+//     const date = new Date(dateString);
+//     const now = new Date();
+//     const diffTime = Math.abs(now.getTime() - date.getTime());
+//     const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    
+//     if (diffMinutes < 60) {
+//       return `${diffMinutes}m ago`;
+//     } else if (diffMinutes < 1440) {
+//       const hours = Math.floor(diffMinutes / 60);
+//       return `${hours}h ago`;
+//     } else {
+//       const days = Math.floor(diffMinutes / 1440);
+//       return `${days}d ago`;
+//     }
+//   };
+
+//   const getTopics = () => selectedCategory === 'india' ? indianTopics : globalTopics;
+
+//   const getFavicon = (url: string) => {
+//     try {
+//       const u = new URL(url);
+//       return `https://www.google.com/s2/favicons?sz=64&domain=${u.hostname}`;
+//     } catch {
+//       return `https://www.google.com/s2/favicons?sz=64&domain=gnews.io`;
+//     }
+//   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 p-6">

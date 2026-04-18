@@ -12,6 +12,8 @@ import BailForm from './components/pages/BailFormFiller';
 import AffidavitOfServiceForm from './components/pages/AffidavitOfServiceForm';
 import SurrenderPetitionForm from './components/pages/SurrenderPetitionForm';
 import FindLawyer from './components/pages/FindLawyer';
+import CasePredictor from './components/pages/CasePredictor';
+import DocumentGenerator from './components/pages/DocumentGenerator';
  
 import Auth from './components/pages/Auth';
 import { AuthProvider } from './contexts/AuthContext';
@@ -40,6 +42,8 @@ function App() {
                   <Route path="/forms/affidavit" element={<AffidavitOfServiceForm />} />
                   <Route path="/forms/surrender" element={<SurrenderPetitionForm />} />
                   <Route path="/find-lawyer" element={<FindLawyer />} />
+                  <Route path="/predict" element={<CasePredictor />} />
+                  <Route path="/generate-document" element={<DocumentGenerator />} />
                   
                 </Routes>
               </main>
