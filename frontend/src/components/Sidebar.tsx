@@ -98,11 +98,22 @@ export default function Sidebar() {
         {/* Quick Actions */}
         <div className="mb-8 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
           <div className="flex gap-3">
-            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-700 rounded-lg border border-slate-600 text-white hover:bg-slate-600 transition-all duration-200">
-              <Search className="w-4 h-4" />
-              <span className="text-sm font-semibold">Search</span>
+            <button
+              className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-700 rounded-lg border border-slate-600 text-white hover:bg-slate-600 transition-all duration-200"
+              onClick={() => {
+                navigate('/dashboard');
+                setIsOpen(false);
+              }}
+              type="button"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span className="text-sm font-semibold">Dashboard</span>
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-700 rounded-lg border border-slate-600 text-white hover:bg-slate-600 transition-all duration-200">
+            <button
+              className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-700 rounded-lg border border-slate-600 text-white hover:bg-slate-600 transition-all duration-200"
+              onClick={() => window.dispatchEvent(new Event('legalai:open-chat'))}
+              type="button"
+            >
               <MessageSquare className="w-4 h-4" />
               <span className="text-sm font-semibold">Chat</span>
             </button>

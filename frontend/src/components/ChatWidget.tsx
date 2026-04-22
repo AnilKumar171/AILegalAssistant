@@ -108,6 +108,13 @@ export default function ChatWidget() {
     return () => clearInterval(interval);
   }, [isOpen]);
 
+  // Allow other UI elements (e.g., sidebar) to open the chat
+  useEffect(() => {
+    const handler = () => setIsOpen(true);
+    window.addEventListener('legalai:open-chat', handler as EventListener);
+    return () => window.removeEventListener('legalai:open-chat', handler as EventListener);
+  }, []);
+
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
       listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });

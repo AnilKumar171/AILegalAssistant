@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface User {
+  id?: string;
   email: string;
   name: string;
   picture?: string;
@@ -11,11 +12,13 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, name: string, password: string) => Promise<void>;
-  googleLogin: (googleUser: { email: string; name: string; picture?: string }) => void;
+  googleLogin: (credential: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5002';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
@@ -32,39 +35,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const login = async (email: string, password: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // In a real app, validate credentials against a backend
-    if (password.length < 6) {
-      throw new Error('Invalid credentials');
-    }
-
-    setUser({
-      email,
-      name: email.split('@')[0],
-      provider: 'email',
+    const res = await fetch(`${BACKEND_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+    }
+    setUser(data.user);
   };
 
   const signup = async (email: string, name: string, password: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters');
+    const res = await fetch(`${BACKEND_URL}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, password }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
     }
-
-    setUser({ email, name, provider: 'email' });
+    setUser(data.user);
   };
 
-  const googleLogin = (googleUser: { email: string; name: string; picture?: string }) => {
-    setUser({
-      email: googleUser.email,
-      name: googleUser.name,
-      picture: googleUser.picture,
-      provider: 'google',
+  const googleLogin = async (credential: string) => {
+    const res = await fetch(`${BACKEND_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
     });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+    }
+    setUser(data.user);
   };
 
   const logout = () => {

@@ -5,17 +5,26 @@ const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const Groq = require("groq-sdk");
 const axios = require("axios");
+const bcrypt = require("bcryptjs");
+
+const { connectMongo } = require("./db");
+const User = require("./models/User");
 
 const app = express();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Allow requests from any localhost port (covers Vite at 5173 AND the random
 // ephemeral port the Google OAuth popup uses) plus any future prod domain.
-const ALLOWED_ORIGINS = /^https?:\/\/localhost(:\d+)?$/;
+const IS_PROD = process.env.NODE_ENV === "production";
+const ALLOWED_ORIGINS = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 app.use(
   cors({
     origin: (origin, callback) => {
+      // In development, allow any origin to avoid localhost/127.0.0.1/LAN mismatches.
+      if (!IS_PROD) {
+        return callback(null, true);
+      }
       // Allow requests with no origin (curl / mobile clients / same-origin)
       if (!origin || ALLOWED_ORIGINS.test(origin)) {
         return callback(null, true);
@@ -29,27 +38,146 @@ app.use(
 );
 app.use(express.json());
 
-// ─── Google OAuth verification endpoint ──────────────────────────────────────
-// The frontend passes the OAuth access_token it received from Google.
-// We verify it by calling Google's tokeninfo / userinfo endpoint server-side.
-app.post("/auth/google", async (req, res) => {
-  const { access_token } = req.body || {};
-  if (!access_token) {
-    return res.status(400).json({ error: "access_token is required" });
+// Minimal auth request logging to debug UI issues
+app.use((req, _res, next) => {
+  if (req.path.startsWith("/auth/")) {
+    console.log(`🔐 ${req.method} ${req.path}`);
   }
+  next();
+});
+
+// Connect MongoDB Atlas (fail fast on misconfig)
+connectMongo()
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((e) => {
+    console.error("❌ MongoDB connection failed:", e?.message || e);
+    process.exit(1);
+  });
+
+function sanitizeUser(userDoc) {
+  if (!userDoc) return null;
+  // Mongoose doc or plain object
+  const obj = typeof userDoc.toJSON === "function" ? userDoc.toJSON() : userDoc;
+  return {
+    id: String(obj._id || obj.id || ""),
+    email: obj.email,
+    name: obj.name,
+    picture: obj.picture,
+    provider: obj.provider,
+  };
+}
+
+// ─── Email/Password Auth ──────────────────────────────────────────────────────
+app.post("/auth/signup", async (req, res) => {
   try {
-    const response = await axios.get(
-      "https://www.googleapis.com/oauth2/v3/userinfo",
-      { headers: { Authorization: `Bearer ${access_token}` } }
-    );
-    const { email, name, picture, sub } = response.data;
+    const { email, name, password } = req.body || {};
+    if (!email || !name || !password) {
+      return res.status(400).json({ error: "email, name, and password are required" });
+    }
+    if (typeof password !== "string" || password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await User.findOne({ email: normalizedEmail }).lean();
+    if (existing) {
+      return res.status(409).json({ error: "User already exists. Please sign in." });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      email: normalizedEmail,
+      name: String(name).trim(),
+      provider: "email",
+      passwordHash,
+      lastLoginAt: new Date(),
+    });
+
+    return res.json({ ok: true, user: sanitizeUser(user) });
+  } catch (e) {
+    console.error("❌ /auth/signup error:", e);
+    return res.status(500).json({ error: "Signup failed" });
+  }
+});
+
+app.post("/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "email and password are required" });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user || user.provider !== "email" || !user.passwordHash) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const ok = await bcrypt.compare(String(password), user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    return res.json({ ok: true, user: sanitizeUser(user) });
+  } catch (e) {
+    console.error("❌ /auth/login error:", e);
+    return res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// ─── Google OAuth verification endpoint ──────────────────────────────────────
+// Supports either:
+// - { credential } (Google ID token from @react-oauth/google)
+// - { access_token } (legacy flow)
+app.post("/auth/google", async (req, res) => {
+  try {
+    const { credential, access_token } = req.body || {};
+
+    let email, name, picture, sub;
+    if (credential) {
+      // Validate ID token server-side
+      const tokenInfo = await axios.get("https://oauth2.googleapis.com/tokeninfo", {
+        params: { id_token: credential },
+        timeout: 15000,
+      });
+      email = tokenInfo.data?.email;
+      name = tokenInfo.data?.name;
+      picture = tokenInfo.data?.picture;
+      sub = tokenInfo.data?.sub;
+    } else if (access_token) {
+      const response = await axios.get("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${access_token}` },
+        timeout: 15000,
+      });
+      ({ email, name, picture, sub } = response.data || {});
+    } else {
+      return res.status(400).json({ error: "credential or access_token is required" });
+    }
+
     if (!email) {
       return res.status(401).json({ error: "Unable to retrieve email from Google" });
     }
-    return res.json({
-      ok: true,
-      user: { email, name, picture, googleId: sub },
-    });
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const updated = await User.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        $set: {
+          email: normalizedEmail,
+          name: String(name || normalizedEmail.split("@")[0]),
+          picture: picture || undefined,
+          provider: "google",
+          googleId: sub || undefined,
+          lastLoginAt: new Date(),
+        },
+      },
+      { new: true, upsert: true }
+    );
+
+    return res.json({ ok: true, user: sanitizeUser(updated) });
   } catch (err) {
     console.error("❌ Google token verification failed:", err?.response?.data || err.message);
     return res.status(401).json({ error: "Invalid or expired Google token" });

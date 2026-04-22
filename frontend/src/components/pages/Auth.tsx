@@ -11,16 +11,6 @@ import {
   Github,
 } from 'lucide-react';
 
-// Decode a Google JWT credential without a library
-function decodeGoogleJwt(token: string): Record<string, any> {
-  try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64));
-  } catch {
-    throw new Error('Failed to decode Google credential');
-  }
-}
-
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -54,29 +44,23 @@ export default function Auth() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-  // ── Google credential flow (JWT returned directly — no extra API call) ────
-  const handleGoogleSuccess = (credentialResponse: CredentialResponse) => {
+  // ── Google credential flow (send credential to backend to store user) ─────
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     console.log('[Auth] Google credential response received:', credentialResponse);
+    setError(null);
+    setLoading(true);
     try {
       if (!credentialResponse.credential) {
         throw new Error('No credential returned from Google');
       }
-      const payload = decodeGoogleJwt(credentialResponse.credential);
-      console.log('[Auth] Decoded Google JWT payload:', {
-        email: payload.email,
-        name: payload.name,
-        picture: payload.picture,
-      });
-      googleLogin({
-        email: payload.email,
-        name: payload.name,
-        picture: payload.picture,
-      });
-      console.log('[Auth] googleLogin() called, navigating to /dashboard');
+      await googleLogin(credentialResponse.credential);
+      console.log('[Auth] googleLogin() success, navigating to /dashboard');
       navigate('/dashboard');
     } catch (err: any) {
       console.error('[Auth] Google login decode error:', err);
       setError(err.message || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
     }
   };
 

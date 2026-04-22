@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Scale, 
   FileText, 
@@ -20,9 +21,8 @@ import {
   BarChart3
 } from 'lucide-react';
 
-// Mock user data - in real app, this would come from authentication context
+// Mocked profile data (non-auth). Name comes from AuthContext.
 const userData = {
-  name: 'Balaji', // This will be dynamic
   role: 'Senior Legal Counsel',
   membership: 'Pro Member',
   joinDate: '2024',
@@ -141,16 +141,14 @@ const recentActivities = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isVisible, setIsVisible] = useState(false);
   const [activeFeature, setActiveFeature] = useState(null);
-  const [userName, setUserName] = useState(userData.name);
+  const userName = user?.name || user?.email?.split('@')?.[0] || 'User';
 
   // In real app, this would come from auth context
   useEffect(() => {
     setIsVisible(true);
-    // Simulate dynamic username - in real app, this would be from context/API
-    const storedName = localStorage.getItem('userName') || 'Anil Kumar';
-    setUserName(storedName);
   }, []);
 
   const handleFeatureClick = (path) => {
